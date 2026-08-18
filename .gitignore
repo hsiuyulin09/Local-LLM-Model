@@ -1,0 +1,13 @@
+﻿# 專案規劃與草稿
+*_plan.md
+
+# Python 虛擬環境
+.venv/
+
+# Python 快取與編譯檔
+__pycache__/
+*.py[cod]
+
+# 環境變數與本機密鑰
+.env
+.env.*

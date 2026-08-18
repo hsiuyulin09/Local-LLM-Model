@@ -1,0 +1,15 @@
+provider: ollama
+
+providers:
+  ollama:
+    base_url: "http://127.0.0.1:11434"
+    model: "gemma3:12b-it-qat"
+    timeout: 600
+    keep_alive: "5m"
+
+generation:
+  temperature: 1
+  num_ctx: 4096          # context window 限制
+  num_predict: 2048      # openai: max_tokens
+  top_p: 0.9
+  repeat_penalty: 1.1    # openai: frequency_penalty 近似
