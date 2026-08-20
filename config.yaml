@@ -1,15 +1,17 @@
-provider: ollama
+provider: local_qwen
 
 providers:
-  ollama:
-    base_url: "http://127.0.0.1:11434"
-    model: "gemma3:12b-it-qat"
+  local_qwen:
+    base_url: "http://127.0.0.1:8080/v1/"
+    model: "qwen3-vl-8b" # qwen3-vl-8b-instruct-abliterated-v2.0-q4_k_m
     timeout: 600
-    keep_alive: "5m"
 
 generation:
   temperature: 1
-  num_ctx: 4096          # context window 限制
-  num_predict: 2048      # openai: max_tokens
+  max_tokens: 2048
   top_p: 0.9
-  repeat_penalty: 1.1    # openai: frequency_penalty 近似
+  presence_penalty: 1.0
+
+system_prompt: >-
+  You are a helpful local AI assistant.
+  Always reply in Traditional Chinese when the user writes in Traditional Chinese.
