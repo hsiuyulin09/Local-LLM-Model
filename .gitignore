@@ -11,3 +11,8 @@ __pycache__/
 # 環境變數與本機密鑰
 .env
 .env.*
+
+# 本機模型與執行環境
+models/
+runtime/llama.cpp
+logs/
