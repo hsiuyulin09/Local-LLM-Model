@@ -1,17 +1,7 @@
 from client import call_llm, create_client, load_config
 
 
-def start_chat(
-    client,
-    config,
-    provider_config,
-    model=None,
-    temperature=None,
-    num_ctx=None,
-    num_predict=None,
-    top_p=None,
-    repeat_penalty=None,
-):
+def start_chat(client, config, provider_config, model=None, temperature=None, max_tokens=None, top_p=None, presence_penalty=None):
     generation = config["generation"]
     parameters = {
         "model": model or provider_config["model"],
@@ -20,21 +10,29 @@ def start_chat(
             if temperature is not None
             else generation["temperature"]
         ),
-        "num_ctx": num_ctx if num_ctx is not None else generation["num_ctx"],
-        "num_predict": (
-            num_predict
-            if num_predict is not None
-            else generation["num_predict"]
+        "max_tokens": (
+            max_tokens
+            if max_tokens is not None
+            else generation["max_tokens"]
         ),
-        "top_p": top_p if top_p is not None else generation["top_p"],
-        "repeat_penalty": (
-            repeat_penalty
-            if repeat_penalty is not None
-            else generation["repeat_penalty"]
+        "top_p": (
+            top_p
+            if top_p is not None
+            else generation["top_p"]
         ),
+        "presence_penalty": (
+            presence_penalty
+            if presence_penalty is not None
+            else generation["presence_penalty"]
+        )
     }
 
-    memory = []
+    memory = [
+        {
+            "role": "system",
+            "content": config["system_prompt"]
+        },
+    ]
 
     print(
         f"{parameters['model']}：輸入 q 或 quit 結束對話。"
@@ -52,12 +50,8 @@ def start_chat(
             continue
 
         memory.append({"role": "user", "content": user_input})
-        response = call_llm(
-            client,
-            memory,
-            parameters,
-            provider_config,
-        )
+
+        response = call_llm(client, memory, parameters, provider_config)
 
         if response:
             print(f"user: {user_input}")
@@ -68,8 +62,9 @@ def start_chat(
 
 def main():
     config, provider_config = load_config()
-    client = create_client(provider_config)
-    start_chat(client, config, provider_config)
+
+    with create_client(provider_config) as client:
+        start_chat(client, config, provider_config)
 
 
 if __name__ == "__main__":

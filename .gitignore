@@ -16,3 +16,6 @@ __pycache__/
 models/
 runtime/llama.cpp
 logs/
+
+# 執行記錄與除錯輸出
+*.log
