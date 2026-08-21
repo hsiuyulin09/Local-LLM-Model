@@ -13,10 +13,10 @@ def load_config(config_path="config.yaml"):
 
 
 def create_client(provider_config):
-    client = httpx.Client(
+    client = httpx.Client( # 建立 Client 物件
         base_url=provider_config["base_url"],
         timeout=provider_config["timeout"],
-        trust_env=False,
+        trust_env=False # 要求 HTTPX 不使用作業系統環境變數中的網路設定
     )
     return client
 
@@ -25,48 +25,49 @@ def call_llm(client, messages, parameters, provider_config):
     request_body = {
         "model": parameters["model"],
         "messages": messages,
-        "stream": False,
-        "keep_alive": provider_config["keep_alive"],
-        "options": {
-            "temperature": parameters["temperature"],
-            "num_ctx": parameters["num_ctx"],
-            "num_predict": parameters["num_predict"],
-            "top_p": parameters["top_p"],
-            "repeat_penalty": parameters["repeat_penalty"],
-        },
+        "temperature": parameters["temperature"],
+        "max_tokens": parameters["max_tokens"],
+        "top_p": parameters["top_p"],
+        "presence_penalty": parameters["presence_penalty"],
+        "stream": False
     }
 
     try:
-        response = client.post("/api/chat", json=request_body)
-        response.raise_for_status()
-        result = response.json()
+        response = client.post("chat/completions", json=request_body)
+        response.raise_for_status() # status 檢查, 通過或跳出 error 至 except
+        result = response.json() # status 通過後解析成 json
 
-        content = result["message"]["content"]
-        prompt_tokens = result.get("prompt_eval_count", 0)
-        completion_tokens = result.get("eval_count", 0)
-        total_tokens = prompt_tokens + completion_tokens
+        content = result["choices"][0]["message"]["content"]
+        usage = result.get("usage") or {}
+
+        prompt_tokens = usage.get("prompt_tokens", 0)
+        completion_tokens = usage.get("completion_tokens", 0)
+        total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
 
         print(
             "token: "
-            f"prompt = {prompt_tokens}, "
-            f"completion = {completion_tokens}, "
-            f"total = {total_tokens}"
+            f"prompt = {prompt_tokens}\n"
+            f"completion = {completion_tokens}\n"
+            f"total = {total_tokens}\n"
         )
 
         return content
 
     except httpx.ConnectError:
         print(
-            "error: 無法連線到 Ollama，"
-            f"請確認 {provider_config['base_url']} 已啟動。"
+            f"error: 無法連線到 local Qwen API\n"
+            f"Please check {provider_config['base_url']}"
         )
         return None
+
     except httpx.HTTPStatusError as error:
         print(
-            f"error: Ollama 回傳 {error.response.status_code}，"
+            f"error: llama-server feedback:\n"
+            f"{error.response.status_code}\n"
             f"{error.response.text}"
         )
         return None
+
     except (httpx.HTTPError, KeyError, ValueError) as error:
-        print(f"error: {error}")
+        print(f"error: API responde cannot process ({error})")
         return None
