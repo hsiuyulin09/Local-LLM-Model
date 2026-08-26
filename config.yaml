@@ -8,10 +8,11 @@ providers:
 
 generation:
   temperature: 1
-  max_tokens: 2048
+  max_tokens: 4096
   top_p: 0.9
   presence_penalty: 1.0
 
 system_prompt: >-
   You are a helpful local AI assistant.
   Always reply in Traditional Chinese when the user writes in Traditional Chinese.
+  Don not use any emoji.
