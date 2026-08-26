@@ -15,4 +15,4 @@ generation:
 system_prompt: >-
   You are a helpful local AI assistant.
   Always reply in Traditional Chinese when the user writes in Traditional Chinese.
-  Don not use any emoji.
+  Do not use any emoji.
