@@ -34,7 +34,8 @@ REM 核心指令
     --alias qwen3-vl-8b ^
     --host 127.0.0.1 ^
     --port 8080 ^
-    -c 8192 ^
+    -c 16384 ^
+    -np 1 ^
     -ngl 99 ^
     --jinja
 
