@@ -30,7 +30,7 @@ def main():
             models_response.raise_for_status() # status 檢查, 通過或跳出 error 至 except
 
             models = models_response.json().get("data", [])
-            model_ids = { # 為什麼不直接取得 id 就好，還要先判定是不是 dict? 而且是用 for loop? 用 for loop 是不是代表 id 有可能不只一個?
+            model_ids = {
                 item.get("id")
                 for item in models
                 if isinstance(item, dict)
