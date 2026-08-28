@@ -225,6 +225,25 @@ Non-streaming 回答位於 `choices[0].message.content`。設定 `stream: true` 
 
 `llama-server` 負責載入 GGUF、管理 KV cache、執行 token generation，並提供 OpenAI-compatible HTTP API。Python 只用於本專案的測試程式，不是啟動 Model Server 的必要條件。
 
+### start.bat 啟動參數
+
+`scripts/start.bat` 使用以下參數啟動 Model Server：
+
+| 指令或參數 | 作用 |
+| --- | --- |
+| `"%SERVER%"` | 執行 `llama-server.exe` |
+| `-m "%MODEL%"` | 指定實際 GGUF 模型路徑 |
+| `--alias qwen3-vl-8b` | 設定 API 公開的 model ID |
+| `--host 127.0.0.1` | 僅監聽本機連線 |
+| `--port 8080` | 設定 HTTP port |
+| `-c 16384` | 設定 prompt 與輸出共用的 context 上限 |
+| `-np 1` | 設定單一 active inference slot |
+| `-ngl 99` | 將可用模型層 offload 至 GPU |
+| `--jinja` | 啟用 Jinja chat template |
+| `^` | Windows Batch 的換行接續符號，不是 llama-server 參數 |
+
+BAT 參數設定 Server Runtime，`config.yaml` 設定內建測試 Client。`base_url` 與 `model` 必須對應 Server 的 host、port 與 alias。
+
 ### Hardware Backend
 
 llama.cpp 不限定單一 GPU，應依作業系統、硬體與驅動程式選擇對應 build：
