@@ -3,9 +3,9 @@ Local Qwen OpenAI-Compatible Model Service
 
 ## 簡介
 
-本專案使用 `llama.cpp` 在本機載入相容的 GGUF 模型，並提供 OpenAI-compatible Chat API。預設配置使用 Qwen，但其他 Agent、CLI、Web 或應用程式只需透過 HTTP 呼叫模型，不需要知道 GGUF 檔名或直接操作推論引擎。
+本專案使用 `llama.cpp` 在本機載入相容的 GGUF 模型，並提供 OpenAI-compatible Chat API。
 
-本專案的責任範圍是 Model Service。Session、Memory、RAG、Tool Calling、權限管理及 Agent workflow 應由呼叫端負責。
+專案範圍包含模型載入、本機推論、HTTP API、啟動腳本與基本服務驗證。
 
 ### 版本簡述
 
@@ -35,11 +35,6 @@ Version 1.0.0
   - [5. 驗證服務](#5-驗證服務)
 - [詳細使用說明](#詳細使用說明)
 - [Local API Server](#local-api-server)
-  - [API Config](#api-config)
-  - [Health Check](#health-check)
-  - [Chat Completions](#chat-completions)
-  - [Streaming](#streaming)
-  - [Agent Integration](#agent-integration)
 - [技術整合說明](#技術整合說明)
 - [常見問題](#常見問題)
 - [安全與功能範圍](#安全與功能範圍)
@@ -50,7 +45,7 @@ Version 1.0.0
 
 ```mermaid
 flowchart TB
-    Client[Agent / CLI / Application]
+    Client[API Client]
     HTTP[OpenAI-compatible HTTP]
     Server[llama-server]
     Model[Model]
@@ -110,7 +105,15 @@ python -m pip install -r requirements.txt
 
 ### 2. 安裝 llama.cpp Vulkan Runtime
 
-本專案使用 Vulkan 測試環境。從 [llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases) 下載 Windows x64 Vulkan build，其他硬體請選擇對應 backend 的 build。將內容解壓縮至：
+本專案使用 Vulkan 測試環境。從 [llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases) 下載 Windows x64 Vulkan build，其他硬體請選擇對應 backend 的 build。
+
+建立 Runtime 目錄：
+
+```powershell
+New-Item -ItemType Directory -Path .\runtime\llama.cpp -Force
+```
+
+將下載內容解壓縮至：
 
 ```text
 runtime/llama.cpp/
@@ -190,251 +193,41 @@ assistant: API test successful
 
 ## 詳細使用說明
 
-### Client Config
+使用 `scripts/start.bat` 啟動 API
 
-`config.yaml` 控制內建 Python Client：
+`scripts/test.py` 提供 API 驗證服務
 
-```yaml
-provider: local_qwen
-
-providers:
-  local_qwen:
-    base_url: "http://127.0.0.1:8080/v1/"
-    model: "qwen3-vl-8b"
-    timeout: 600
-
-generation:
-  temperature: 1
-  max_tokens: 4096
-  top_p: 0.9
-  presence_penalty: 1.0
-```
-
-`generation` 是 request 預設值，不是 Server 的硬性限制。外部 Agent 應在自己的 provider config 管理這些設定。
-
-### Terminal Chat Test
-
-API Server 運行時，可使用終端多輪問答：
-
-```powershell
-python .\main.py
-```
-
-輸入 `q` 或 `quit` 結束。
-
-### Server Runtime Parameters
-
-`scripts/start.bat` 目前使用：
-
-| 參數 | 值 | 用途 |
-| --- | --- | --- |
-| `--alias` | `qwen3-vl-8b` | API model ID |
-| `--host` | `127.0.0.1` | 僅允許本機連線 |
-| `--port` | `8080` | HTTP port |
-| `-c` | `16384` | context 上限 |
-| `-np` | `1` | 同時執行一個 inference request |
-| `-ngl` | `99` | 將可用模型層 offload 至 GPU |
-| `--jinja` | enabled | 使用模型 chat template |
+透過 `main.py` 進行終端問答測試，測試設定位於 `config.yaml`
 
 ## Local API Server
 
-### API Config
-
-```text
-Base URL: http://127.0.0.1:8080/v1/
-Model:    qwen3-vl-8b
-Timeout:  建議 600 秒
-```
-
-主要 endpoint：
+| 項目 | 設定 |
+| --- | --- |
+| Base URL | `http://127.0.0.1:8080/v1/` |
+| 預設 model ID | `qwen3-vl-8b` |
+| 建議 timeout | 600 秒 |
 
 | Method | Endpoint | 用途 |
 | --- | --- | --- |
-| `GET` | `/v1/models` | 取得目前提供的 model ID |
-| `POST` | `/v1/chat/completions` | 文字 Chat Completion |
-| `GET` | `/props` | 取得 llama-server Runtime 設定 |
+| `GET` | `/v1/models` | 確認服務與目前 model ID |
+| `POST` | `/v1/chat/completions` | 送出文字 Chat Completion |
+| `GET` | `/props` | 查看 context、slot 等 Runtime 設定 |
 
-### Health Check
+Chat request 至少需要 `model` 與 `messages`；message 使用 `system`、`user`、`assistant` role。常用選填欄位包括 `temperature`、`max_tokens`、`top_p`、`presence_penalty` 與 `stream`。
 
-```powershell
-Invoke-RestMethod "http://127.0.0.1:8080/v1/models" |
-    ConvertTo-Json -Depth 5
-```
+Non-streaming 回答位於 `choices[0].message.content`。設定 `stream: true` 時，response 會以 `choices[0].delta.content` 分段回傳。
 
-應能在 `data` 陣列中找到：
-
-```json
-{
-  "id": "qwen3-vl-8b",
-  "object": "model"
-}
-```
-
-檢查實際 context 與 slot：
-
-```powershell
-$props = Invoke-RestMethod "http://127.0.0.1:8080/props"
-$props.model_alias
-$props.default_generation_settings.n_ctx
-$props.total_slots
-```
-
-預期依序為：
-
-```text
-qwen3-vl-8b
-16384
-1
-```
-
-### Chat Completions
-
-Request line 與 headers：
-
-```http
-POST /v1/chat/completions HTTP/1.1
-Host: 127.0.0.1:8080
-Content-Type: application/json
-```
-
-Request body：
-
-```json
-{
-  "model": "qwen3-vl-8b",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are a helpful assistant."
-    },
-    {
-      "role": "user",
-      "content": "請用繁體中文回答。"
-    }
-  ],
-  "temperature": 0.8,
-  "max_tokens": 2048,
-  "top_p": 0.9,
-  "stream": false
-}
-```
-
-PowerShell 測試：
-
-```powershell
-$body = @{
-    model = "qwen3-vl-8b"
-    messages = @(
-        @{ role = "user"; content = "請用一句話介紹你自己。" }
-    )
-    max_tokens = 256
-    stream = $false
-} | ConvertTo-Json -Depth 5
-
-Invoke-RestMethod `
-    -Uri "http://127.0.0.1:8080/v1/chat/completions" `
-    -Method Post `
-    -ContentType "application/json" `
-    -Body $body
-```
-
-主要 response 結構：
-
-```json
-{
-  "choices": [
-    {
-      "message": {
-        "role": "assistant",
-        "content": "模型回答"
-      }
-    }
-  ],
-  "usage": {
-    "prompt_tokens": 0,
-    "completion_tokens": 0,
-    "total_tokens": 0
-  }
-}
-```
-
-### Streaming
-
-Server 已支援 streaming。呼叫端將 `stream` 設為 `true`，並逐段處理 response：
-
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="http://127.0.0.1:8080/v1/",
-    api_key="local",
-    timeout=600,
-)
-
-stream = client.chat.completions.create(
-    model="qwen3-vl-8b",
-    messages=[{"role": "user", "content": "你好"}],
-    stream=True,
-)
-
-parts = []
-for chunk in stream:
-    content = chunk.choices[0].delta.content
-    if content:
-        parts.append(content)
-        print(content, end="", flush=True)
-
-answer = "".join(parts)
-```
-
-OpenAI Python SDK 不屬於本專案依賴。此範例應在 Agent 專案安裝 `openai` 後使用。
-
-### Agent Integration
-
-外部 Agent 可加入以下 provider：
-
-```yaml
-provider: local_qwen
-
-providers:
-  local_qwen:
-    base_url: "http://127.0.0.1:8080/v1/"
-    api_key: "local"
-    model: "qwen3-vl-8b"
-    timeout: 600
-```
-
-目前 Server 未啟用 authentication。`api_key: local` 只是滿足部分 OpenAI SDK 的非空欄位要求，不是安全憑證。
-
-llama-server 不保存 Session。每次 request 都必須傳入該次推論需要的對話：
-
-```python
-messages = [
-    {"role": "system", "content": "..."},
-    {"role": "user", "content": "第一個問題"},
-    {"role": "assistant", "content": "第一個回答"},
-    {"role": "user", "content": "後續問題"},
-]
-```
-
-Agent 端應負責：
-
-- Session 與 conversation history
-- Context token 預算、裁切與摘要
-- Timeout、取消、重試與排隊狀態
-- Streaming chunk 組合
-- Memory、RAG、Tool Calling 與權限控制
-- Server 離線時清楚報錯，不應未經設定自行切換雲端模型
+`llama-server` 不保存對話狀態，每次 request 都必須包含該次推論需要的 `messages`。目前 Server 沒有 authentication；部分 OpenAI-compatible SDK 如要求非空 API key，可使用 `local` 作為 placeholder，但它不是安全憑證。
 
 ## 技術整合說明
 
 ### llama-server
 
-`llama-server` 負責載入 GGUF、管理 KV cache、執行 token generation，並提供 OpenAI-compatible HTTP API。Python 只用於本專案的測試 Client，不是啟動 Model Server 的必要條件。
+`llama-server` 負責載入 GGUF、管理 KV cache、執行 token generation，並提供 OpenAI-compatible HTTP API。Python 只用於本專案的測試程式，不是啟動 Model Server 的必要條件。
 
 ### Hardware Backend
 
-llama.cpp 不限定單一 GPU。應依作業系統、硬體與驅動程式選擇對應 build：
+llama.cpp 不限定單一 GPU，應依作業系統、硬體與驅動程式選擇對應 build：
 
 | Backend | 主要硬體 |
 | --- | --- |
@@ -449,22 +242,19 @@ llama.cpp 不限定單一 GPU。應依作業系統、硬體與驅動程式選擇
 
 ### Model Compatibility
 
-模型不限定為 Qwen，但必須是目前 llama.cpp build 支援的 GGUF 模型。Chat API 也需要可用的 chat template；Vision 模型則需要相符的 multimodal projector。
+模型不限定為 Qwen，如要使用預設推論引擎 llama.cpp build 需確認為有支援的 GGUF 模型。
 
-目前 `scripts/start.bat` 與 `config.yaml` 預設使用 Qwen3-VL-8B。替換模型時需要同步修改：
+Chat API 需要可用的 chat template，Vision 模型則需要相符的 multimodal projector。
 
-- `start.bat` 的模型路徑
-- `--alias` 的 model ID
-- `config.yaml` 的 `model`
-- 外部 Agent 使用的 model ID
+目前 `scripts/start.bat` 與 `config.yaml` 預設使用 Qwen3-VL-8B。替換模型時需要同步修改模型路徑、`--alias`、`config.yaml` 的 `model`，以及 API request 使用的 model ID。
 
-Agent 應使用 alias，不應依賴實際 GGUF filename。保留相同 alias 時，呼叫端不需要因為更換模型檔或量化版本而修改。
+API 應使用 alias，不應依賴實際 GGUF filename。保留相同 alias 時，更換模型檔或量化版本不會改變 API model ID。
 
 ### Context 與 Concurrency
 
-`-c 16384` 包含 prompt 與模型輸出。Agent 必須保留輸出空間，並在 request 前裁切或摘要過長的歷史訊息。
+`-c 16384` 包含 prompt 與模型輸出，request 必須保留輸出空間，並避免送入超過上限的內容。
 
-`-np 1` 代表同時只有一個 active inference slot。額外 request 由 llama-server 排隊，但 Client 仍應處理 timeout 與取消。
+`-np 1` 同時間僅單一 active inference slot。複數 request 由 llama-server 排序處理，timeout 應包含等待與生成時間。
 
 ## 常見問題
 
@@ -475,7 +265,7 @@ Agent 應使用 alias，不應依賴實際 GGUF filename。保留相同 alias �
 | HTTP 400 context size error | 減少歷史訊息或輸出上限，使兩者合計低於 16384 tokens |
 | GPU 記憶體不足 | 降低 `-c`，必要時降低 `-ngl` |
 | Request timeout | 增加 Client timeout，並考慮 `-np 1` 的排隊時間 |
-| CORS 或無 API key 警告 | localhost 使用屬預期；不要在未加保護時綁定 `0.0.0.0` |
+| CORS 或無 API key 警告 | localhost 使用屬預期，不要在未加保護時綁定 `0.0.0.0` |
 
 ## 安全與功能範圍
 
