@@ -173,6 +173,15 @@ SHA256: E462AF5C4D867483DBC58A9354D1CEE4A701EC02B49A557F4129724B23416B3D
 .\scripts\start.bat
 ```
 
+使用 Windows 命令提示字元（CMD）時，先切換至專案根目錄再啟動監聽：
+
+```bat
+cd /d C:\path\to\Local-LLM-Model
+scripts\start.bat
+```
+
+請將範例路徑替換為實際的專案位置；`/d` 可同時切換磁碟機與目錄。啟動 API Server 不需要先啟用 Conda 環境。
+
 出現以下訊息代表服務已就緒：
 
 ```text
