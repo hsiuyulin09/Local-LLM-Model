@@ -23,12 +23,11 @@ Version 1.0.0
 ## 目錄
 
 - [簡介](#簡介)
-- [專案特色](#專案特色)
 - [完整架構](#完整架構)
 - [檔案結構](#檔案結構)
 - [測試環境](#測試環境)
 - [快速開始](#快速開始)
-  - [1. 取得專案與 Python 環境](#1-取得專案與-python-環境)
+  - [1. 建立環境](#1-建立環境)
   - [2. 安裝 llama.cpp Vulkan Runtime](#2-安裝-llamacpp-vulkan-runtime)
   - [3. 下載模型](#3-下載模型)
   - [4. 啟動 API Server](#4-啟動-api-server)
@@ -38,7 +37,7 @@ Version 1.0.0
 - [技術整合說明](#技術整合說明)
 - [常見問題](#常見問題)
 - [安全與功能範圍](#安全與功能範圍)
-- [特別感謝](#特別感謝)
+- [開源模型資源來源](#開源模型資源來源)
 - [關於作者](#關於作者)
 
 ## 完整架構
@@ -105,32 +104,41 @@ python -m pip install -r requirements.txt
 
 ### 2. 安裝 llama.cpp Vulkan Runtime
 
-本專案使用 Vulkan 測試環境。從 [llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases) 下載 Windows x64 Vulkan build，其他硬體請選擇對應 backend 的 build。
-
-建立 Runtime 目錄：
+本專案使用 [llama.cpp b10472](https://github.com/ggml-org/llama.cpp/releases/tag/b10472) 的 Windows x64 Vulkan build。執行以下指令下載、驗證並解壓縮 Runtime：
 
 ```powershell
+$llamaVersion = "b10472"
+$llamaZip = Join-Path $env:TEMP "llama-$llamaVersion-bin-win-vulkan-x64.zip"
+$llamaUrl = "https://github.com/ggml-org/llama.cpp/releases/download/$llamaVersion/llama-$llamaVersion-bin-win-vulkan-x64.zip"
+$expectedHash = "2104E62C7E5237F2190240CDC987D8C3946A77051F696771D03B8D762A9D2FAE"
+
 New-Item -ItemType Directory -Path .\runtime\llama.cpp -Force
+
+curl.exe --location --fail --retry 3 --continue-at - --progress-bar --output $llamaZip $llamaUrl
+
+$actualHash = (Get-FileHash -LiteralPath $llamaZip -Algorithm SHA256).Hash
+if ($actualHash -ne $expectedHash) {
+    throw "Runtime ZIP SHA-256 驗證失敗：$actualHash"
+}
+
+Expand-Archive -LiteralPath $llamaZip -DestinationPath .\runtime\llama.cpp -Force
 ```
 
-將下載內容解壓縮至：
+解壓縮後應至少包含 `llama-server.exe` 與 `ggml-vulkan.dll`
 
-```text
-runtime/llama.cpp/
-```
-
-檔案至少包含 `llama-server.exe` 與 `ggml-vulkan.dll`
+確認版本：
 
 ```powershell
 .\runtime\llama.cpp\llama-server.exe --version
 ```
 
-本專案驗證的版本與 Runtime ZIP SHA-256
-
 ```text
 version: 0.1.1-dev (build 10472, commit 60eeeb608)
-SHA256: 2104E62C7E5237F2190240CDC987D8C3946A77051F696771D03B8D762A9D2FAE
 ```
+
+上述下載網址與 SHA-256 僅適用於 `llama-b10472-bin-win-vulkan-x64.zip`
+
+其他硬體請從 [llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases) 選擇對應 backend 的 build。
 
 ### 3. 下載模型
 
@@ -273,7 +281,7 @@ API 應使用 alias，不應依賴實際 GGUF filename。保留相同 alias 時�
 
 `-c 16384` 包含 prompt 與模型輸出，request 必須保留輸出空間，並避免送入超過上限的內容。
 
-`-np 1` 同時間僅單一 active inference slot。複數 request 由 llama-server 排序處理，timeout 應包含等待與生成時間。
+`-np 1` 同時間僅單一 active inference slot。超出可用 slot 之複數 request 由 llama-server 排序處理，timeout 應包含等待與生成時間。
 
 ## 常見問題
 
